@@ -31,3 +31,7 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Shitty Zone Identifier wsl ###
+
+*:Zone.Identifier
