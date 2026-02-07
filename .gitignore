@@ -1,3 +1,17 @@
+##############################
+## Java
+##############################
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+hs_err_pid*
+replay_pid*
+
+##############################
+## Maven
+##############################
 target/
 pom.xml.tag
 pom.xml.releaseBackup
@@ -7,11 +21,175 @@ release.properties
 dependency-reduced-pom.xml
 buildNumber.properties
 .mvn/timing.properties
-# https://maven.apache.org/wrapper/#usage-without-binary-jar
 .mvn/wrapper/maven-wrapper.jar
+.flattened-pom.xml
 
-# Eclipse m2e generated files
-# Eclipse Core
-.project
-# JDT-specific (Eclipse Java Development Tools)
+##############################
+## Gradle
+##############################
+build/
+.gradle
+.gradletasknamecache
+gradle-app.setting
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+
+##############################
+## IntelliJ IDEA
+##############################
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+.idea_modules/
+atlassian-ide-plugin.xml
+com_crashlytics_export_strings.xml
+crashlytics.properties
+crashlytics-build.properties
+fabric.properties
+
+##############################
+## Eclipse
+##############################
+.settings/
 .classpath
+.project
+.metadata
+bin/
+tmp/
+*.bak
+*.swp
+*~.nib
+local.properties
+.loadpath
+.factorypath
+.buildpath
+.target
+.tern-project
+.texlipse
+.springBeans
+.recommenders/
+.apt_generated/
+.apt_generated_test/
+
+##############################
+## NetBeans
+##############################
+nbproject/private/
+nbbuild/
+dist/
+nbdist/
+nbactions.xml
+nb-configuration.xml
+
+##############################
+## Visual Studio Code
+##############################
+.vscode/
+.code-workspace
+
+##############################
+## OS X
+##############################
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+##############################
+## Windows
+##############################
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+##############################
+## Linux
+##############################
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+##############################
+## Spring Boot
+##############################
+HELP.md
+!.mvn/wrapper/maven-wrapper.properties
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+##############################
+## Logs
+##############################
+*.log
+logs/
+log/
+spring.log
+
+##############################
+## H2 Database
+##############################
+*.h2.db
+*.mv.db
+*.trace.db
+
+##############################
+## Temporary Files
+##############################
+*.tmp
+*.temp
+*.cache
+
+##############################
+## Security & Credentials
+##############################
+application-dev.properties
+application-local.properties
+application-secret.properties
+*.env
+.env
+.env.local
+.env.*.local
+secrets.yml
+secrets.yaml
+
+##############################
+## Misc
+##############################
+*.pid
+*.seed
+*.pid.lock
+.cache/
+.node_repl_history
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
