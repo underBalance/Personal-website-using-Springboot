@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gabriel Olmedilla - Portfolio</title>
+    <link rel="stylesheet" th:href="@{/styles.css}">
+</head>
+<body>
+    <div class="page">
+        <header class="hero">
+            <div th:each="p : ${personal}">
+                <p class="hero__eyebrow">Portfolio</p>
+                <h1 class="hero__title" th:text="${p.name}">Name</h1>
+                <p class="hero__role">
+                    <span th:text="${p.role}">Role</span>
+                    <span class="dot">•</span>
+                    <span th:text="${p.year}">Year</span>
+                </p>
+                <p class="hero__summary" th:text="${p.summary}">Summary</p>
+                <div class="hero__links">
+                    <a class="btn" th:each="link : ${p.links}" th:href="${link}" th:text="${link}" target="_blank" rel="noopener">Link</a>
+                </div>
+            </div>
+        </header>
+
+        <section class="section">
+            <h2>Projects</h2>
+            <div class="grid">
+                <article class="card" th:each="project : ${projects}">
+                    <h3 th:text="${project.title}">Project title</h3>
+                    <p th:text="${project.description}">Project description</p>
+                    <a class="link" th:href="${project.link}" target="_blank" rel="noopener">View project</a>
+                </article>
+            </div>
+        </section>
+
+        <section class="section">
+            <h2>To Do</h2>
+            <div class="grid">
+                <article class="card" th:each="todo : ${todos}">
+                    <h3 th:text="${todo.name}">Todo title</h3>
+                    <p th:text="${todo.description}">Todo description</p>
+                    <div class="tags">
+                        <span class="tag" th:each="tag : ${todo.tags}" th:text="${tag}">tag</span>
+                    </div>
+                </article>
+            </div>
+        </section>
+    </div>
+</body>
+</html>
