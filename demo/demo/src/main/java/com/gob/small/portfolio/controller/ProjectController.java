@@ -1,9 +1,9 @@
-package com.gob.small.controller;
+package com.gob.small.portfolio.controller;
 
 import java.util.List;
 
-import com.gob.small.model.Project;
-import com.gob.small.service.ProjectService;
+import com.gob.small.portfolio.model.Project;
+import com.gob.small.portfolio.service.ProjectService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
