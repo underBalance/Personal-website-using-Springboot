@@ -1,4 +1,4 @@
-package com.gob.small.model;
+package com.gob.small.portfolio.model;
 
 import java.util.List;
 

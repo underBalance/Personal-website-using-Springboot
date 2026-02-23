@@ -1,4 +1,4 @@
-package com.gob.small.controller;
+package com.gob.small.portfolio.controller;
 
 
 
@@ -8,8 +8,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.gob.small.model.Personal;
-import com.gob.small.service.PersonalService;
+import com.gob.small.portfolio.model.Personal;
+import com.gob.small.portfolio.service.PersonalService;
 
 
 @RestController

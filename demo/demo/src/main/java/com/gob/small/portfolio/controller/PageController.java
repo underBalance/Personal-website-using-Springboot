@@ -1,12 +1,12 @@
-package com.gob.small.controller;
+package com.gob.small.portfolio.controller;
 
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 
-import com.gob.small.service.PersonalService;
-import com.gob.small.service.ProjectService;
-import com.gob.small.service.ToDoService;
+import com.gob.small.portfolio.service.PersonalService;
+import com.gob.small.portfolio.service.ProjectService;
+import com.gob.small.portfolio.service.ToDoService;
 
 @Controller
 public class PageController {

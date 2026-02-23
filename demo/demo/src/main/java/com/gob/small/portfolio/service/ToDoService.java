@@ -1,10 +1,10 @@
-package com.gob.small.service;
+package com.gob.small.portfolio.service;
 
 import java.util.List;
 
 import org.springframework.stereotype.Service;
 
-import com.gob.small.model.ToDo;
+import com.gob.small.portfolio.model.ToDo;
 
 @Service
 public class ToDoService {
