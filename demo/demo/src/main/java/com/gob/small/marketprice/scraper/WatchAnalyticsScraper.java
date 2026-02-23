@@ -84,6 +84,90 @@ public class WatchAnalyticsScraper {
         }
     }
 
+    public static Document brandModels(String brand){
+        String url = "https://watchanalytics.io/en-eur/watches/brands/" + brand;
+
+        try (Playwright playwright = Playwright.create()) {
+
+            Browser browser = playwright.chromium().launch(
+                    new BrowserType.LaunchOptions()
+                            .setHeadless(true) // pon false si quieres VER el navegador
+            );
+
+            BrowserContext context = browser.newContext(
+                    new Browser.NewContextOptions()
+                            .setUserAgent(
+                                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+                                    "AppleWebKit/537.36 (KHTML, like Gecko) " +
+                                    "Chrome/121.0.0.0 Safari/537.36"
+                            )
+            );
+
+            Page page = context.newPage();
+
+            page.navigate(url, new Page.NavigateOptions().setWaitUntil(WaitUntilState.NETWORKIDLE));
+
+            // Function that scans the hole page
+            humanScroll(page);
+            // HTML COMPLETO ya renderizado (con JS)
+            String html = page.content();
+
+            browser.close();
+
+            // 👉 Si quieres tratarlo con Jsoup después
+            return Jsoup.parse(html, url);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to fetch page " + url, e);
+        }
+    }
+
+        private static void humanScroll(Page page) {
+        int maxSteps = 15;
+
+        for (int i = 0; i < maxSteps; i++) {
+
+            System.out.println("Human scroll step " + i);
+
+            // scroll pequeño
+            page.evaluate("window.scrollBy(0, 400)");
+
+            // mover el ratón (MUY IMPORTANTE)
+            page.mouse().move(300, 500);
+
+            // esperar a que cargue contenido
+            page.waitForTimeout(2000);
+
+            // debug: cuántos links hay
+            int linkCount = page.locator("a[href]").count();
+            System.out.println("Links found: " + linkCount);
+        }
+    }
+
+
+        private static void scrollToBottom(Page page) {
+        int previousHeight = 0;
+        int maxScrolls = 5, i=0;
+
+        while ( i < maxScrolls) {
+            int currentHeight = ((Number) page.evaluate("document.body.scrollHeight")).intValue();
+            if (currentHeight == previousHeight) {
+                break; // ya no se carga nada nuevo
+            }
+
+            previousHeight = currentHeight;
+
+            // scroll hasta abajo
+            page.evaluate("window.scrollTo(0, document.body.scrollHeight)");
+            // espera a que cargue contenido nuevo
+            page.waitForTimeout(1200);
+
+            System.out.println(page.content());
+            // Next page
+            i++;
+        }
+    }
+
+
     public WatchAnalyticsSnapshot fetchSnapshot(String brand, String model, String ref) {
         // Retrieve data
         Document doc = fetchWatchAnalyticsDocument(brand, model, ref); 
@@ -155,11 +239,7 @@ public class WatchAnalyticsScraper {
 
     }
 
-    // public WatchAnalyticsBrands fetchBrands() {
-       
-
-    //     return new WatchAnalyticsBrands(new ArrayList<>(bySlug.values()));
-    // }
+    
 
     private BigDecimal parseMoney(String text) {
         if (text == null) return null;
@@ -232,6 +312,15 @@ public class WatchAnalyticsScraper {
             this.label = label;
             this.index = index;
         }
+    }
+
+    public static void main(String[] args) {
+       Document elem = brandModels("rolex");
+       for (Element a : elem.select("a[href]")) {
+            String href = a.attr("href");
+            System.out.println(href);
+        }
+    
     }
 
 }

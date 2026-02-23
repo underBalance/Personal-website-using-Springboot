@@ -1,5 +1,7 @@
 package com.gob.small.marketprice.controller;
 
+import java.util.List;
+
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -9,6 +11,7 @@ import com.gob.small.marketprice.data.BrandIngester;
 import com.gob.small.marketprice.model.WatchAnalyticsBrands;
 import com.gob.small.marketprice.model.WatchAnalyticsSnapshot;
 import com.gob.small.marketprice.scraper.WatchAnalyticsScraper;
+import com.gob.small.marketprice.scraper.brandesAndModels;
 
 
 @RestController
@@ -34,5 +37,18 @@ public class WatchAnalyticsController {
     @GetMapping("/brands")
     public WatchAnalyticsBrands getBrands() {
         return new WatchAnalyticsBrands(brandIngester.getBrands());
+    }
+
+    @GetMapping("/brands/{brand}/models")
+    public List<String> getModelsByBrand(@PathVariable String brand) {
+        return brandesAndModels.fetchModelsByBrand(brand);
+    }
+
+    @GetMapping("/brands/{brand}/models/{model}/references")
+    public List<String> getReferencesByBrandAndModel(
+            @PathVariable String brand,
+            @PathVariable String model
+    ) {
+        return brandesAndModels.fetchModelReferencesByBrandAndModel(brand, model);
     }
 }

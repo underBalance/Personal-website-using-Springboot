@@ -47,6 +47,168 @@
                 </article>
             </div>
         </section>
+
+        <section class="section section--split">
+            <div class="card api-panel">
+                <h2>Watch Analytics API Explorer</h2>
+                <p class="api-panel__subtitle">Select a brand, a model, and then a reference to get a json with the complete information.</p>
+
+                <label class="api-label" for="brandSelect">Marca</label>
+                <select id="brandSelect" class="api-select">
+                    <option value="">Loading brands...</option>
+                </select>
+
+                <div class="api-block">
+                    <h3>Models</h3>
+                    <p id="modelsHint" class="api-hint">Select a brand to see the models.</p>
+                    <div id="modelsList" class="api-chip-list"></div>
+                </div>
+
+                <div class="api-block">
+                    <h3>Reference number</h3>
+                    <p id="refsHint" class="api-hint">Select a model to see the reference numbers available for that model.</p>
+                    <div id="refsList" class="api-chip-list"></div>
+                </div>
+            </div>
+
+            <div class="card api-result">
+                <h2>Resultado</h2>
+                <p id="resultStatus" class="api-hint">Select a reference to execute inside the backend: <code>/api/v1/watch-analytics/{brand}/{model}/{ref}</code></p>
+                <pre id="resultJson" class="api-json" aria-live="polite"></pre>
+            </div>
+        </section>
     </div>
+
+    <script>
+        (function () {
+            const brandSelect = document.getElementById('brandSelect');
+            const modelsList = document.getElementById('modelsList');
+            const refsList = document.getElementById('refsList');
+            const modelsHint = document.getElementById('modelsHint');
+            const refsHint = document.getElementById('refsHint');
+            const resultStatus = document.getElementById('resultStatus');
+            const resultJson = document.getElementById('resultJson');
+
+            const state = {
+                brandSlug: '',
+                modelSlug: ''
+            };
+
+            async function fetchJson(url) {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status} - ${url}`);
+                }
+                return response.json();
+            }
+
+            function clearElement(element) {
+                while (element.firstChild) {
+                    element.removeChild(element.firstChild);
+                }
+            }
+
+            function setResult(status, data) {
+                resultStatus.textContent = status;
+                resultJson.textContent = data ? JSON.stringify(data, null, 2) : '';
+            }
+
+            function createChip(label, onClick) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'api-chip';
+                button.textContent = label;
+                button.addEventListener('click', onClick);
+                return button;
+            }
+
+            async function loadBrands() {
+                brandSelect.innerHTML = '<option value="">Loading brands...</option>';
+                try {
+                    const payload = await fetchJson('/api/v1/watch-analytics/brands');
+                    const brands = Array.isArray(payload.brands) ? payload.brands : [];
+                    brandSelect.innerHTML = '<option value="">Select a brand</option>';
+
+                    brands.forEach((brand) => {
+                        const option = document.createElement('option');
+                        option.value = brand.slug;
+                        option.textContent = brand.name;
+                        brandSelect.appendChild(option);
+                    });
+                } catch (error) {
+                    brandSelect.innerHTML = '<option value="">Error loading brands</option>';
+                    setResult('Brands could not be loaded.', { error: error.message });
+                }
+            }
+
+            async function loadModels(brandSlug) {
+                clearElement(modelsList);
+                clearElement(refsList);
+                refsHint.textContent = 'Select a model to see the references.';
+                state.modelSlug = '';
+
+                if (!brandSlug) {
+                    modelsHint.textContent = 'Select a brand to check the models.';
+                    return;
+                }
+
+                modelsHint.textContent = 'Loading models...';
+                try {
+                    const models = await fetchJson(`/api/v1/watch-analytics/brands/${encodeURIComponent(brandSlug)}/models`);
+                    if (!Array.isArray(models) || models.length === 0) {
+                        modelsHint.textContent = 'No available models for this brand.';
+                        return;
+                    }
+
+                    modelsHint.textContent = 'Select a model to see its references.';
+                    models.forEach((modelSlug) => {
+                        modelsList.appendChild(createChip(modelSlug, () => loadReferences(brandSlug, modelSlug)));
+                    });
+                } catch (error) {
+                    modelsHint.textContent = 'Error loading models.';
+                    setResult('Models could not be loaded.', { error: error.message });
+                }
+            }
+
+            async function loadReferences(brandSlug, modelSlug) {
+                state.modelSlug = modelSlug;
+                clearElement(refsList);
+                refsHint.textContent = `Loading references for ${modelSlug}...`;
+
+                try {
+                    const refs = await fetchJson(`/api/v1/watch-analytics/brands/${encodeURIComponent(brandSlug)}/models/${encodeURIComponent(modelSlug)}/references`);
+                    if (!Array.isArray(refs) || refs.length === 0) {
+                        refsHint.textContent = 'No references for this model.';
+                        return;
+                    }
+
+                    refsHint.textContent = 'Select a reference.';
+                    refs.forEach((ref) => {
+                        refsList.appendChild(createChip(ref, () => loadSnapshot(brandSlug, modelSlug, ref)));
+                    });
+                } catch (error) {
+                    refsHint.textContent = 'Error loading references.';
+                    setResult('references could not be loading.', { error: error.message });
+                }
+            }
+
+            async function loadSnapshot(brandSlug, modelSlug, ref) {
+                setResult(`Checking ${brandSlug}/${modelSlug}/${ref}...`, null);
+                try {
+                    const snapshot = await fetchJson(`/api/v1/watch-analytics/${encodeURIComponent(brandSlug)}/${encodeURIComponent(modelSlug)}/${encodeURIComponent(ref)}`);
+                    setResult(`Result for: ${brandSlug}/${modelSlug}/${ref}`, snapshot);
+                } catch (error) {
+                    setResult('Error checking snapshot.', { error: error.message });
+                }
+            }
+
+            brandSelect.addEventListener('change', (event) => {
+                state.brandSlug = event.target.value;
+                loadModels(state.brandSlug);
+            });
+
+            loadBrands();
+        })();
+    </script>
 </body>
 </html>

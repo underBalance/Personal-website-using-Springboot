@@ -79,6 +79,13 @@ body {
     margin-top: 56px;
 }
 
+.section--split {
+    display: grid;
+    gap: 20px;
+    grid-template-columns: 1.2fr 1fr;
+    align-items: start;
+}
+
 .section h2 {
     font-size: 1.8rem;
     margin-bottom: 20px;
@@ -123,8 +130,89 @@ body {
     font-weight: 600;
 }
 
+.api-panel h2,
+.api-result h2 {
+    margin-top: 0;
+}
+
+.api-panel__subtitle {
+    margin-top: 0;
+    color: var(--muted);
+}
+
+.api-label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.api-select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid rgba(30, 27, 22, 0.18);
+    border-radius: 12px;
+    font: inherit;
+    background: #fff;
+}
+
+.api-block {
+    margin-top: 20px;
+}
+
+.api-block h3 {
+    margin: 0 0 6px;
+}
+
+.api-hint {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.4;
+}
+
+.api-chip-list {
+    margin-top: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    max-height: 260px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.api-chip {
+    border: 1px solid rgba(201, 90, 59, 0.38);
+    background: rgba(201, 90, 59, 0.08);
+    color: var(--ink);
+    border-radius: 999px;
+    padding: 7px 12px;
+    cursor: pointer;
+    font: inherit;
+}
+
+.api-chip:hover {
+    background: rgba(201, 90, 59, 0.18);
+}
+
+.api-json {
+    margin: 14px 0 0;
+    background: #1f1b17;
+    color: #fef2df;
+    border-radius: 14px;
+    padding: 14px;
+    min-height: 260px;
+    max-height: 460px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 0.86rem;
+}
+
 @media (max-width: 700px) {
     .hero {
         padding: 28px;
+    }
+
+    .section--split {
+        grid-template-columns: 1fr;
     }
 }
