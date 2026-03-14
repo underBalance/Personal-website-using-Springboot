@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gabriel Olmedilla - Portfolio</title>
     <link rel="stylesheet" th:href="@{/styles.css}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 </head>
 <body>
     <div class="page">
@@ -69,11 +70,68 @@
                     <p id="refsHint" class="api-hint">Select a model to see the reference numbers available for that model.</p>
                     <div id="refsList" class="api-chip-list"></div>
                 </div>
+
+                <div class="api-block api-bundle">
+                    <div class="api-bundle__header">
+                        <div>
+                            <h3>Bundle builder</h3>
+                            <p id="bundleHint" class="api-hint">Choose a reference and add it to the bundle. The selection is kept in the browser.</p>
+                        </div>
+                        <button id="addToBundleButton" type="button" class="api-button api-button--primary" disabled>Add current watch</button>
+                    </div>
+
+                    <div class="api-bundle__actions">
+                        <button id="runBundleButton" type="button" class="api-button">Run /bundle</button>
+                        <button id="runRankingButton" type="button" class="api-button" disabled>Run /bundle/ranking</button>
+                        <button id="clearBundleButton" type="button" class="api-button api-button--ghost">Clear bundle</button>
+                    </div>
+
+                    <p id="bundleStatus" class="api-hint">No watches in the bundle yet.</p>
+                    <div id="bundleList" class="api-bundle__list"></div>
+                </div>
             </div>
 
             <div class="card api-result">
                 <h2>Resultado</h2>
                 <p id="resultStatus" class="api-hint">Select a reference to execute inside the backend: <code>/api/v1/watch-analytics/{brand}/{model}/{ref}</code></p>
+                <div class="api-chart-card">
+                    <div class="api-chart-card__header">
+                        <h3>Historical price</h3>
+                        <p id="chartSummary" class="api-hint">The chart will appear when the backend returns <code>priceHistory</code>.</p>
+                    </div>
+                    <div id="historyMetrics" class="api-metrics">
+                        <p class="api-hint">ROI metrics will appear here when enough historical data exists.</p>
+                    </div>
+                    <div class="api-chart-shell">
+                        <canvas id="historyChart" class="api-chart" aria-label="Historical watch price chart"></canvas>
+                        <div id="historyChartEmpty" class="api-chart__empty">No historical prices available yet</div>
+                    </div>
+                    <div class="api-intervals">
+                        <div class="api-intervals__header">
+                            <h3>Interval analytics</h3>
+                            <p class="api-hint">Return and rolling volatility for each available interval.</p>
+                        </div>
+                        <div id="intervalMetrics" class="api-intervals__table-wrap">
+                            <p class="api-hint">Interval metrics will appear here when historical data exists.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="api-ranking-card">
+                    <div class="api-ranking-card__header">
+                        <h3>Bundle ranking</h3>
+                        <p id="rankingStatus" class="api-hint">Run <code>/bundle</code> first, then <code>/bundle/ranking</code> to score the selected watches.</p>
+                    </div>
+                    <div id="rankingTable" class="api-intervals__table-wrap">
+                        <p class="api-hint">The ranking will appear here when bundle snapshots are available.</p>
+                    </div>
+                </div>
+                <div class="api-ranking-card">
+                    <div class="api-ranking-card__header">
+                        <h3>Saved bundle response</h3>
+                        <p class="api-hint">This is the response returned by <code>/bundle</code> and stored in the frontend for the ranking step.</p>
+                    </div>
+                    <pre id="bundleJson" class="api-json" aria-live="polite"></pre>
+                </div>
                 <pre id="resultJson" class="api-json" aria-live="polite"></pre>
             </div>
         </section>
@@ -88,10 +146,32 @@
             const refsHint = document.getElementById('refsHint');
             const resultStatus = document.getElementById('resultStatus');
             const resultJson = document.getElementById('resultJson');
+            const bundleJson = document.getElementById('bundleJson');
+            const chartSummary = document.getElementById('chartSummary');
+            const historyMetrics = document.getElementById('historyMetrics');
+            const historyChartEmpty = document.getElementById('historyChartEmpty');
+            const historyChartCanvas = document.getElementById('historyChart');
+            const intervalMetrics = document.getElementById('intervalMetrics');
+            const bundleHint = document.getElementById('bundleHint');
+            const bundleStatus = document.getElementById('bundleStatus');
+            const bundleList = document.getElementById('bundleList');
+            const addToBundleButton = document.getElementById('addToBundleButton');
+            const runBundleButton = document.getElementById('runBundleButton');
+            const runRankingButton = document.getElementById('runRankingButton');
+            const clearBundleButton = document.getElementById('clearBundleButton');
+            const rankingStatus = document.getElementById('rankingStatus');
+            const rankingTable = document.getElementById('rankingTable');
+            let historyChart = null;
+            const BUNDLE_STORAGE_KEY = 'watch-analytics-bundle-v1';
 
             const state = {
                 brandSlug: '',
-                modelSlug: ''
+                modelSlug: '',
+                currentReference: '',
+                currentSnapshot: null,
+                bundleItems: loadSavedBundle(),
+                bundleSnapshots: [],
+                rankingItems: []
             };
 
             async function fetchJson(url) {
@@ -100,6 +180,36 @@
                     throw new Error(`HTTP ${response.status} - ${url}`);
                 }
                 return response.json();
+            }
+
+            async function postJson(url, payload) {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status} - ${url}`);
+                }
+
+                return response.json();
+            }
+
+            function loadSavedBundle() {
+                try {
+                    const raw = window.localStorage.getItem(BUNDLE_STORAGE_KEY);
+                    const parsed = raw ? JSON.parse(raw) : [];
+                    return Array.isArray(parsed) ? parsed : [];
+                } catch (error) {
+                    return [];
+                }
+            }
+
+            function saveBundleSelection() {
+                window.localStorage.setItem(BUNDLE_STORAGE_KEY, JSON.stringify(state.bundleItems));
             }
 
             function clearElement(element) {
@@ -111,6 +221,7 @@
             function setResult(status, data) {
                 resultStatus.textContent = status;
                 resultJson.textContent = data ? JSON.stringify(data, null, 2) : '';
+                renderPriceHistory(data && Array.isArray(data.priceHistory) ? data.priceHistory : []);
             }
 
             function createChip(label, onClick) {
@@ -120,6 +231,731 @@
                 button.textContent = label;
                 button.addEventListener('click', onClick);
                 return button;
+            }
+
+            function formatPrice(value) {
+                return new Intl.NumberFormat('en-US', {
+                    style: 'currency',
+                    currency: 'EUR',
+                    maximumFractionDigits: 0
+                }).format(value);
+            }
+
+            function formatPercent(value) {
+                const sign = value > 0 ? '+' : '';
+                return `${sign}${value.toFixed(1)}%`;
+            }
+
+            function bundleKey(item) {
+                return `${item.brand}::${item.model}::${item.ref}`;
+            }
+
+            function setBundleResponse(data) {
+                bundleJson.textContent = data ? JSON.stringify(data, null, 2) : '';
+            }
+
+            function renderBundleList() {
+                clearElement(bundleList);
+
+                if (state.bundleItems.length === 0) {
+                    bundleStatus.textContent = 'No watches in the bundle yet.';
+                    runBundleButton.disabled = true;
+                    runRankingButton.disabled = true;
+                    return;
+                }
+
+                bundleStatus.textContent = `${state.bundleItems.length} watch${state.bundleItems.length === 1 ? '' : 'es'} selected.`;
+                runBundleButton.disabled = false;
+                runRankingButton.disabled = state.bundleSnapshots.length === 0;
+
+                state.bundleItems.forEach((item, index) => {
+                    const row = document.createElement('div');
+                    row.className = 'api-bundle__item';
+
+                    const meta = document.createElement('div');
+                    meta.className = 'api-bundle__meta';
+                    meta.innerHTML = `
+                        <strong>${item.brand} / ${item.model}</strong>
+                        <span>Ref ${item.ref}</span>
+                    `;
+
+                    const actions = document.createElement('div');
+                    actions.className = 'api-bundle__row-actions';
+
+                    const previewButton = document.createElement('button');
+                    previewButton.type = 'button';
+                    previewButton.className = 'api-button api-button--ghost';
+                    previewButton.textContent = 'Preview';
+                    previewButton.addEventListener('click', () => loadSnapshot(item.brand, item.model, item.ref));
+
+                    const removeButton = document.createElement('button');
+                    removeButton.type = 'button';
+                    removeButton.className = 'api-button api-button--ghost';
+                    removeButton.textContent = 'Remove';
+                    removeButton.addEventListener('click', () => removeBundleItem(index));
+
+                    actions.appendChild(previewButton);
+                    actions.appendChild(removeButton);
+                    row.appendChild(meta);
+                    row.appendChild(actions);
+                    bundleList.appendChild(row);
+                });
+            }
+
+            function renderRankingTable(items) {
+                clearElement(rankingTable);
+
+                if (!Array.isArray(items) || items.length === 0) {
+                    rankingTable.innerHTML = '<p class="api-hint">The ranking will appear here when bundle snapshots are available.</p>';
+                    return;
+                }
+
+                const table = document.createElement('table');
+                table.className = 'api-intervals__table';
+                table.innerHTML = `
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Watch</th>
+                            <th>Score</th>
+                            <th>Sharpe</th>
+                            <th>ROI</th>
+                            <th>Momentum</th>
+                            <th>Drawdown</th>
+                            <th>Max DD</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                `;
+
+                const tbody = table.querySelector('tbody');
+                items.forEach((item, index) => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${index + 1}</td>
+                        <td>${item.brand} ${item.model}</td>
+                        <td><strong>${Number(item.score).toFixed(4)}</strong></td>
+                        <td>${Number(item.sharpeRatio ?? item.sharpeLike ?? 0).toFixed(2)}</td>
+                        <td>${formatPercent(Number(item.roiPercent ?? 0))}</td>
+                        <td>${formatPercent(Number(item.momentumPercent ?? 0))}${item.momentumWindow ? ` <span class="api-table__detail">${item.momentumWindow}</span>` : ''}</td>
+                        <td>${formatPercent(-Math.abs(Number(item.drawdown ?? 0)))}</td>
+                        <td>${formatPercent(-Math.abs(Number(item.maxDrawdown ?? 0)))}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+
+                rankingTable.appendChild(table);
+            }
+
+            function resetBundleResults() {
+                state.bundleSnapshots = [];
+                state.rankingItems = [];
+                setBundleResponse(null);
+                renderRankingTable([]);
+                rankingStatus.textContent = 'Run /bundle first, then /bundle/ranking to score the selected watches.';
+            }
+
+            function removeBundleItem(index) {
+                state.bundleItems.splice(index, 1);
+                saveBundleSelection();
+                resetBundleResults();
+                renderBundleList();
+            }
+
+            function addCurrentWatchToBundle() {
+                if (!state.brandSlug || !state.modelSlug || !state.currentReference) {
+                    bundleHint.textContent = 'Choose a brand, model and reference before adding a watch.';
+                    return;
+                }
+
+                const item = {
+                    brand: state.brandSlug,
+                    model: state.modelSlug,
+                    ref: state.currentReference
+                };
+
+                const alreadyExists = state.bundleItems.some((bundleItem) => bundleKey(bundleItem) === bundleKey(item));
+                if (alreadyExists) {
+                    bundleHint.textContent = 'This watch is already in the bundle.';
+                    return;
+                }
+
+                state.bundleItems.push(item);
+                saveBundleSelection();
+                resetBundleResults();
+                renderBundleList();
+                bundleHint.textContent = `Added ${item.brand}/${item.model}/${item.ref} to the bundle.`;
+            }
+
+            function clearBundle() {
+                state.bundleItems = [];
+                saveBundleSelection();
+                resetBundleResults();
+                renderBundleList();
+                bundleHint.textContent = 'The bundle is empty. Choose a reference and add it again.';
+            }
+
+            async function runBundle() {
+                if (state.bundleItems.length === 0) {
+                    bundleStatus.textContent = 'Add at least one watch before running /bundle.';
+                    return;
+                }
+
+                bundleStatus.textContent = `Running /bundle for ${state.bundleItems.length} watches...`;
+                try {
+                    const snapshots = await postJson('/api/v1/watch-analytics/bundle', state.bundleItems);
+                    state.bundleSnapshots = Array.isArray(snapshots) ? snapshots : [];
+                    state.rankingItems = [];
+                    setBundleResponse(state.bundleSnapshots);
+                    renderBundleList();
+                    renderRankingTable([]);
+                    rankingStatus.textContent = 'Bundle snapshots saved in the frontend. You can run /bundle/ranking now.';
+                    bundleStatus.textContent = `/bundle completed for ${state.bundleSnapshots.length} watches.`;
+                    runRankingButton.disabled = state.bundleSnapshots.length === 0;
+                } catch (error) {
+                    bundleStatus.textContent = 'Error running /bundle.';
+                    setBundleResponse({ error: error.message });
+                }
+            }
+
+            async function runRanking() {
+                if (!Array.isArray(state.bundleSnapshots) || state.bundleSnapshots.length === 0) {
+                    rankingStatus.textContent = 'Run /bundle first so the frontend has the saved bundle response.';
+                    return;
+                }
+
+                rankingStatus.textContent = `Running /bundle/ranking for ${state.bundleSnapshots.length} watches...`;
+                try {
+                    const ranking = await postJson('/api/v1/watch-analytics/bundle/ranking', state.bundleSnapshots);
+                    state.rankingItems = Array.isArray(ranking) ? ranking : [];
+                    renderRankingTable(state.rankingItems);
+                    rankingStatus.textContent = `Ranking ready for ${state.rankingItems.length} watches.`;
+                } catch (error) {
+                    rankingStatus.textContent = 'Error running /bundle/ranking.';
+                    renderRankingTable([]);
+                }
+            }
+
+            function standardDeviation(values) {
+                if (!Array.isArray(values) || values.length === 0) {
+                    return null;
+                }
+
+                const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+                const variance =
+                    values.reduce((sum, value) => sum + ((value - mean) ** 2), 0) / values.length;
+
+                return Math.sqrt(variance);
+            }
+
+            function average(values) {
+                if (!Array.isArray(values) || values.length === 0) {
+                    return null;
+                }
+
+                return values.reduce((sum, value) => sum + value, 0) / values.length;
+            }
+
+            function sma(values, period) {
+                if (!Array.isArray(values) || values.length < period) {
+                    return null;
+                }
+
+                const slice = values.slice(values.length - period);
+                return average(slice);
+            }
+
+            function emaSeries(values, period) {
+                if (!Array.isArray(values) || values.length < period) {
+                    return [];
+                }
+
+                const multiplier = 2 / (period + 1);
+                const seed = average(values.slice(0, period));
+                const series = new Array(values.length).fill(null);
+                let prev = seed;
+                series[period - 1] = seed;
+
+                for (let i = period; i < values.length; i += 1) {
+                    prev = ((values[i] - prev) * multiplier) + prev;
+                    series[i] = prev;
+                }
+
+                return series;
+            }
+
+            function computeRSI(values, period = 14) {
+                if (!Array.isArray(values) || values.length <= period) {
+                    return null;
+                }
+
+                const deltas = [];
+                for (let i = 1; i < values.length; i += 1) {
+                    deltas.push(values[i] - values[i - 1]);
+                }
+
+                const recent = deltas.slice(-period);
+                const gains = recent.map((delta) => (delta > 0 ? delta : 0));
+                const losses = recent.map((delta) => (delta < 0 ? Math.abs(delta) : 0));
+                const avgGain = average(gains);
+                const avgLoss = average(losses);
+
+                if (avgGain === null || avgLoss === null) {
+                    return null;
+                }
+
+                if (avgLoss === 0) {
+                    return 100;
+                }
+
+                const rs = avgGain / avgLoss;
+                return 100 - (100 / (1 + rs));
+            }
+
+            function destroyChart() {
+                if (historyChart) {
+                    historyChart.destroy();
+                    historyChart = null;
+                }
+            }
+
+            function shiftDate(dateString, unit, amount) {
+                const date = new Date(`${dateString}T00:00:00Z`);
+                if (unit === 'month') {
+                    date.setUTCMonth(date.getUTCMonth() - amount);
+                } else if (unit === 'year') {
+                    date.setUTCFullYear(date.getUTCFullYear() - amount);
+                }
+                return date;
+            }
+
+            function findPointForPeriod(points, targetDate) {
+                const candidates = points.filter((point) => new Date(`${point.time}T00:00:00Z`) <= targetDate);
+                if (candidates.length === 0) {
+                    return null;
+                }
+                return candidates[candidates.length - 1];
+            }
+
+            function renderMetrics(points) {
+                clearElement(historyMetrics);
+
+                if (!Array.isArray(points) || points.length < 2) {
+                    historyMetrics.innerHTML = '<p class="api-hint">ROI metrics will appear here when enough historical data exists.</p>';
+                    return;
+                }
+
+                const periods = [
+                    { label: '1M', unit: 'month', amount: 1 },
+                    { label: '6M', unit: 'month', amount: 6 },
+                    { label: '1Y', unit: 'year', amount: 1 },
+                    { label: '3Y', unit: 'year', amount: 3 },
+                    { label: '5Y', unit: 'year', amount: 5 }
+                ];
+
+                const latest = points[points.length - 1];
+                const latestDate = new Date(`${latest.time}T00:00:00Z`);
+                const metrics = periods
+                    .map((period) => {
+                        const startPoint = findPointForPeriod(points, shiftDate(latest.time, period.unit, period.amount));
+                        if (!startPoint || !Number.isFinite(startPoint.value) || startPoint.value === 0) {
+                            return null;
+                        }
+
+                        const roi = ((latest.value - startPoint.value) / startPoint.value) * 100;
+                        return {
+                            label: period.label,
+                            roi
+                        };
+                    })
+                    .filter(Boolean);
+
+                const returns = points
+                    .slice(1)
+                    .map((point, index) => {
+                        const previous = points[index];
+                        if (!Number.isFinite(previous.value) || previous.value === 0) {
+                            return null;
+                        }
+                        return (point.value - previous.value) / previous.value;
+                    })
+                    .filter((value) => Number.isFinite(value));
+
+                const volatility = standardDeviation(returns);
+                const athPoint = points.reduce((best, point) => (point.value > best.value ? point : best), points[0]);
+                const drawdown = athPoint.value === 0 ? null : ((latest.value - athPoint.value) / athPoint.value) * 100;
+                const riskFreeRate = 0.02;
+                const avgReturn = average(returns);
+                const prices = points.map((point) => point.value);
+                const sharpeRatio =
+                    avgReturn !== null && volatility !== null && volatility !== 0
+                        ? (avgReturn - riskFreeRate) / volatility
+                        : null;
+
+                let runningPeak = points[0].value;
+                let maxDrawdown = 0;
+                points.forEach((point) => {
+                    if (point.value > runningPeak) {
+                        runningPeak = point.value;
+                    }
+
+                    if (runningPeak !== 0) {
+                        const currentDrawdown = ((point.value - runningPeak) / runningPeak) * 100;
+                        maxDrawdown = Math.min(maxDrawdown, currentDrawdown);
+                    }
+                });
+
+                const momentumPeriods = [
+                    { label: '3M', unit: 'month', amount: 3 },
+                    { label: '6M', unit: 'month', amount: 6 },
+                    { label: '12M', unit: 'year', amount: 1 }
+                ];
+
+                const momentumMetrics = momentumPeriods
+                    .map((period) => {
+                        const startPoint = findPointForPeriod(points, shiftDate(latest.time, period.unit, period.amount));
+                        if (!startPoint || !Number.isFinite(startPoint.value) || startPoint.value === 0) {
+                            return null;
+                        }
+
+                        return {
+                            label: period.label,
+                            value: latest.value / startPoint.value
+                        };
+                    })
+                    .filter(Boolean);
+
+                const sma3 = sma(prices, 3);
+                const sma6 = sma(prices, 6);
+                const sma12 = sma(prices, 12);
+                const ema12Series = emaSeries(prices, 12);
+                const ema26Series = emaSeries(prices, 26);
+                const ema12 = ema12Series.length ? ema12Series[ema12Series.length - 1] : null;
+                const ema26 = ema26Series.length ? ema26Series[ema26Series.length - 1] : null;
+                const macdSeries = prices.map((_, index) => {
+                    const fast = ema12Series[index];
+                    const slow = ema26Series[index];
+                    return Number.isFinite(fast) && Number.isFinite(slow) ? fast - slow : null;
+                });
+                const cleanMacd = macdSeries.filter((value) => Number.isFinite(value));
+                const signalSeries = emaSeries(cleanMacd, 9);
+                const macd = cleanMacd.length ? cleanMacd[cleanMacd.length - 1] : null;
+                const signal = signalSeries.length ? signalSeries[signalSeries.length - 1] : null;
+                const rsi = computeRSI(prices, 14);
+
+                if (metrics.length === 0) {
+                    historyMetrics.innerHTML = '<p class="api-hint">No ROI windows are available yet for this watch.</p>';
+                }
+
+                metrics.forEach((metric) => {
+                    const item = document.createElement('div');
+                    item.className = `api-metric ${metric.roi >= 0 ? 'api-metric--up' : 'api-metric--down'}`;
+                    item.innerHTML = `<span class="api-metric__label">ROI ${metric.label}</span><strong class="api-metric__value">${formatPercent(metric.roi)}</strong>`;
+                    historyMetrics.appendChild(item);
+                });
+
+                if (returns.length > 0) {
+                    const returnsItem = document.createElement('div');
+                    const latestReturn = returns[returns.length - 1] * 100;
+                    returnsItem.className = `api-metric ${latestReturn >= 0 ? 'api-metric--up' : 'api-metric--down'}`;
+                    returnsItem.innerHTML = `<span class="api-metric__label">Return</span><strong class="api-metric__value">${formatPercent(latestReturn)}</strong><span class="api-metric__detail">Last interval</span>`;
+                    historyMetrics.appendChild(returnsItem);
+                }
+
+                if (volatility !== null) {
+                    const volatilityItem = document.createElement('div');
+                    volatilityItem.className = 'api-metric';
+                    volatilityItem.innerHTML = `<span class="api-metric__label">Volatility</span><strong class="api-metric__value">${formatPercent(volatility * 100)}</strong><span class="api-metric__detail">Std. dev. of returns</span>`;
+                    historyMetrics.appendChild(volatilityItem);
+                }
+
+                if (athPoint) {
+                    const athItem = document.createElement('div');
+                    athItem.className = 'api-metric';
+                    athItem.innerHTML = `<span class="api-metric__label">ATH</span><strong class="api-metric__value">${formatPrice(athPoint.value)}</strong><span class="api-metric__detail">${athPoint.time}</span>`;
+                    historyMetrics.appendChild(athItem);
+                }
+
+                if (drawdown !== null) {
+                    const drawdownItem = document.createElement('div');
+                    drawdownItem.className = `api-metric ${drawdown >= 0 ? 'api-metric--up' : 'api-metric--down'}`;
+                    drawdownItem.innerHTML = `<span class="api-metric__label">Drawdown</span><strong class="api-metric__value">${formatPercent(drawdown)}</strong><span class="api-metric__detail">vs ATH</span>`;
+                    historyMetrics.appendChild(drawdownItem);
+                }
+
+                if (sharpeRatio !== null) {
+                    const sharpeItem = document.createElement('div');
+                    sharpeItem.className = `api-metric ${sharpeRatio >= 0 ? 'api-metric--up' : 'api-metric--down'}`;
+                    sharpeItem.innerHTML = `<span class="api-metric__label">Sharpe</span><strong class="api-metric__value">${sharpeRatio.toFixed(2)}</strong><span class="api-metric__detail">Rf 2%</span>`;
+                    historyMetrics.appendChild(sharpeItem);
+                }
+
+                const maxDrawdownItem = document.createElement('div');
+                maxDrawdownItem.className = `api-metric ${maxDrawdown >= 0 ? 'api-metric--up' : 'api-metric--down'}`;
+                maxDrawdownItem.innerHTML = `<span class="api-metric__label">Max drawdown</span><strong class="api-metric__value">${formatPercent(maxDrawdown)}</strong><span class="api-metric__detail">Worst historical fall</span>`;
+                historyMetrics.appendChild(maxDrawdownItem);
+
+                momentumMetrics.forEach((metric) => {
+                    const momentumDelta = (metric.value - 1) * 100;
+                    const momentumItem = document.createElement('div');
+                    momentumItem.className = `api-metric ${momentumDelta >= 0 ? 'api-metric--up' : 'api-metric--down'}`;
+                    momentumItem.innerHTML = `<span class="api-metric__label">Momentum ${metric.label}</span><strong class="api-metric__value">${metric.value.toFixed(2)}x</strong><span class="api-metric__detail">${formatPercent(momentumDelta)}</span>`;
+                    historyMetrics.appendChild(momentumItem);
+                });
+
+                [
+                    { label: 'SMA 3', value: sma3 },
+                    { label: 'SMA 6', value: sma6 },
+                    { label: 'SMA 12', value: sma12 }
+                ]
+                    .filter((metric) => Number.isFinite(metric.value))
+                    .forEach((metric) => {
+                        const trendDown = latest.value < metric.value;
+                        const item = document.createElement('div');
+                        item.className = `api-metric ${trendDown ? 'api-metric--down' : 'api-metric--up'}`;
+                        item.innerHTML = `<span class="api-metric__label">${metric.label}</span><strong class="api-metric__value">${formatPrice(metric.value)}</strong><span class="api-metric__detail">${trendDown ? 'Below average' : 'Above average'}</span>`;
+                        historyMetrics.appendChild(item);
+                    });
+
+                [
+                    { label: 'EMA 12', value: ema12 },
+                    { label: 'EMA 26', value: ema26 }
+                ]
+                    .filter((metric) => Number.isFinite(metric.value))
+                    .forEach((metric) => {
+                        const item = document.createElement('div');
+                        item.className = `api-metric ${latest.value >= metric.value ? 'api-metric--up' : 'api-metric--down'}`;
+                        item.innerHTML = `<span class="api-metric__label">${metric.label}</span><strong class="api-metric__value">${formatPrice(metric.value)}</strong><span class="api-metric__detail">Recent trend</span>`;
+                        historyMetrics.appendChild(item);
+                    });
+
+                if (rsi !== null) {
+                    const item = document.createElement('div');
+                    let detail = 'Neutral';
+                    let className = 'api-metric';
+                    if (rsi > 70) {
+                        detail = 'Overbought';
+                        className = 'api-metric api-metric--down';
+                    } else if (rsi < 30) {
+                        detail = 'Undervalued';
+                        className = 'api-metric api-metric--up';
+                    }
+
+                    item.className = className;
+                    item.innerHTML = `<span class="api-metric__label">RSI 14</span><strong class="api-metric__value">${rsi.toFixed(1)}</strong><span class="api-metric__detail">${detail}</span>`;
+                    historyMetrics.appendChild(item);
+                }
+
+                if (macd !== null) {
+                    const bullish = signal === null ? macd >= 0 : macd >= signal;
+                    const item = document.createElement('div');
+                    item.className = `api-metric ${bullish ? 'api-metric--up' : 'api-metric--down'}`;
+                    item.innerHTML = `<span class="api-metric__label">MACD</span><strong class="api-metric__value">${macd.toFixed(2)}</strong><span class="api-metric__detail">${signal === null ? 'No signal yet' : `Signal ${signal.toFixed(2)}`}</span>`;
+                    historyMetrics.appendChild(item);
+                }
+            }
+
+            function renderIntervalMetrics(points, returns) {
+                clearElement(intervalMetrics);
+
+                if (!Array.isArray(points) || points.length < 2 || returns.length === 0) {
+                    intervalMetrics.innerHTML = '<p class="api-hint">Interval metrics will appear here when historical data exists.</p>';
+                    return;
+                }
+
+                const table = document.createElement('table');
+                table.className = 'api-intervals__table';
+                table.innerHTML = `
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Price</th>
+                            <th>Return</th>
+                            <th>Rolling volatility</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                `;
+
+                const tbody = table.querySelector('tbody');
+
+                returns.forEach((item, index) => {
+                    const rollingWindow = returns.slice(Math.max(0, index - 2), index + 1).map((value) => value.returnValue);
+                    const rollingVolatility = standardDeviation(rollingWindow);
+                    const row = document.createElement('tr');
+                    const returnClass = item.returnValue >= 0 ? 'api-intervals__value--up' : 'api-intervals__value--down';
+
+                    row.innerHTML = `
+                        <td>${item.time}</td>
+                        <td>${formatPrice(item.price)}</td>
+                        <td class="${returnClass}">${formatPercent(item.returnValue * 100)}</td>
+                        <td>${rollingVolatility === null ? 'n/a' : formatPercent(rollingVolatility * 100)}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+
+                intervalMetrics.appendChild(table);
+            }
+
+            function renderChart(points, returns) {
+                destroyChart();
+
+                if (!Array.isArray(points) || points.length < 2) {
+                    historyChartEmpty.style.display = 'flex';
+                    return;
+                }
+
+                historyChartEmpty.style.display = 'none';
+
+                const labels = points.map((point) => point.time);
+                const prices = points.map((point) => point.value);
+                const returnMap = new Map(returns.map((item) => [item.time, item.returnValue]));
+
+                historyChart = new Chart(historyChartCanvas, {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [
+                            {
+                                label: 'Price',
+                                data: prices,
+                                yAxisID: 'y',
+                                borderColor: '#c95a3b',
+                                backgroundColor: 'rgba(201, 90, 59, 0.18)',
+                                fill: true,
+                                tension: 0.28,
+                                pointRadius: 3,
+                                pointHoverRadius: 5
+                            },
+                            {
+                                label: 'Return %',
+                                data: labels.map((label) => {
+                                    const value = returnMap.get(label);
+                                    return Number.isFinite(value) ? value * 100 : null;
+                                }),
+                                yAxisID: 'y1',
+                                borderColor: '#2e6f95',
+                                backgroundColor: '#2e6f95',
+                                tension: 0.2,
+                                pointRadius: 2,
+                                pointHoverRadius: 4,
+                                borderDash: [6, 4]
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            mode: 'index',
+                            intersect: false
+                        },
+                        plugins: {
+                            legend: {
+                                labels: {
+                                    boxWidth: 12
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label(context) {
+                                        if (context.dataset.label === 'Price') {
+                                            return `Price: ${formatPrice(context.raw)}`;
+                                        }
+                                        return `Return: ${formatPercent(context.raw)}`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                ticks: {
+                                    maxTicksLimit: 8
+                                },
+                                grid: {
+                                    color: 'rgba(30, 27, 22, 0.08)'
+                                }
+                            },
+                            y: {
+                                position: 'left',
+                                ticks: {
+                                    callback(value) {
+                                        return formatPrice(value);
+                                    }
+                                },
+                                grid: {
+                                    color: 'rgba(30, 27, 22, 0.08)'
+                                }
+                            },
+                            y1: {
+                                position: 'right',
+                                grid: {
+                                    drawOnChartArea: false
+                                },
+                                ticks: {
+                                    callback(value) {
+                                        return `${value.toFixed(1)}%`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            function renderPriceHistory(points) {
+                destroyChart();
+
+                if (!Array.isArray(points) || points.length < 2) {
+                    historyChartEmpty.style.display = 'flex';
+                    chartSummary.textContent = 'The chart will appear when the backend returns at least two historical points.';
+                    renderIntervalMetrics([], []);
+                    return;
+                }
+
+                const parsed = points
+                    .map((point) => ({
+                        time: point.time,
+                        value: Number(point.value)
+                    }))
+                    .sort((a, b) => new Date(`${a.time}T00:00:00Z`) - new Date(`${b.time}T00:00:00Z`))
+                    .filter((point) => Number.isFinite(point.value) && point.time);
+
+                if (parsed.length < 2) {
+                    historyChartEmpty.style.display = 'flex';
+                    chartSummary.textContent = 'Historical data is present, but it could not be parsed in the frontend.';
+                    renderMetrics([]);
+                    renderIntervalMetrics([], []);
+                    return;
+                }
+
+                const returns = parsed
+                    .slice(1)
+                    .map((point, index) => {
+                        const previous = parsed[index];
+                        if (!Number.isFinite(previous.value) || previous.value === 0) {
+                            return null;
+                        }
+
+                        return {
+                            time: point.time,
+                            price: point.value,
+                            returnValue: (point.value - previous.value) / previous.value
+                        };
+                    })
+                    .filter(Boolean);
+
+                renderMetrics(parsed);
+                renderIntervalMetrics(parsed, returns);
+                renderChart(parsed, returns);
+
+                const first = parsed[0];
+                const last = parsed[parsed.length - 1];
+                const delta = last.value - first.value;
+                const trendLabel = delta >= 0 ? 'up' : 'down';
+
+                chartSummary.textContent =
+                    `${parsed.length} points • ${first.time} to ${last.time} • last ${formatPrice(last.value)} • ${trendLabel} ${formatPrice(Math.abs(delta))}`;
             }
 
             async function loadBrands() {
@@ -172,6 +1008,7 @@
 
             async function loadReferences(brandSlug, modelSlug) {
                 state.modelSlug = modelSlug;
+                state.currentReference = '';
                 clearElement(refsList);
                 refsHint.textContent = `Loading references for ${modelSlug}...`;
 
@@ -194,9 +1031,13 @@
 
             async function loadSnapshot(brandSlug, modelSlug, ref) {
                 setResult(`Checking ${brandSlug}/${modelSlug}/${ref}...`, null);
+                state.currentReference = ref;
                 try {
                     const snapshot = await fetchJson(`/api/v1/watch-analytics/${encodeURIComponent(brandSlug)}/${encodeURIComponent(modelSlug)}/${encodeURIComponent(ref)}`);
+                    state.currentSnapshot = snapshot;
+                    addToBundleButton.disabled = false;
                     setResult(`Result for: ${brandSlug}/${modelSlug}/${ref}`, snapshot);
+                    bundleHint.textContent = `Current watch ready to add: ${brandSlug}/${modelSlug}/${ref}.`;
                 } catch (error) {
                     setResult('Error checking snapshot.', { error: error.message });
                 }
@@ -207,6 +1048,13 @@
                 loadModels(state.brandSlug);
             });
 
+            addToBundleButton.addEventListener('click', addCurrentWatchToBundle);
+            runBundleButton.addEventListener('click', runBundle);
+            runRankingButton.addEventListener('click', runRanking);
+            clearBundleButton.addEventListener('click', clearBundle);
+
+            renderBundleList();
+            renderRankingTable([]);
             loadBrands();
         })();
     </script>

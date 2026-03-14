@@ -159,6 +159,97 @@ body {
     margin-top: 20px;
 }
 
+.api-bundle {
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(30, 27, 22, 0.08);
+}
+
+.api-bundle__header,
+.api-ranking-card__header {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    justify-content: space-between;
+}
+
+.api-bundle__header h3,
+.api-ranking-card__header h3 {
+    margin: 0 0 6px;
+}
+
+.api-bundle__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.api-button {
+    border: 1px solid rgba(30, 27, 22, 0.14);
+    background: #fff;
+    color: var(--ink);
+    border-radius: 999px;
+    padding: 9px 14px;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 600;
+}
+
+.api-button:hover {
+    border-color: rgba(201, 90, 59, 0.4);
+}
+
+.api-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.api-button--primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.api-button--ghost {
+    background: rgba(30, 27, 22, 0.03);
+}
+
+.api-bundle__list {
+    display: grid;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.api-bundle__item {
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: rgba(30, 27, 22, 0.04);
+    border: 1px solid rgba(30, 27, 22, 0.08);
+}
+
+.api-bundle__meta {
+    display: grid;
+    gap: 4px;
+}
+
+.api-bundle__meta span,
+.api-table__detail {
+    color: var(--muted);
+    font-size: 0.8rem;
+}
+
+.api-bundle__row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
 .api-block h3 {
     margin: 0 0 6px;
 }
@@ -207,6 +298,147 @@ body {
     font-size: 0.86rem;
 }
 
+.api-chart-card {
+    margin-top: 18px;
+    padding: 16px;
+    border-radius: 18px;
+    background: linear-gradient(180deg, rgba(201, 90, 59, 0.08), rgba(255, 255, 255, 0.9));
+    border: 1px solid rgba(201, 90, 59, 0.14);
+}
+
+.api-ranking-card {
+    margin-top: 18px;
+    padding: 16px;
+    border-radius: 18px;
+    background: rgba(30, 27, 22, 0.03);
+    border: 1px solid rgba(30, 27, 22, 0.08);
+}
+
+.api-chart-card__header h3 {
+    margin: 0 0 6px;
+}
+
+.api-chart-shell {
+    position: relative;
+    margin-top: 14px;
+    min-height: 420px;
+    border-radius: 18px;
+    background: #fffaf6;
+    border: 1px solid rgba(201, 90, 59, 0.14);
+    padding: 14px;
+}
+
+.api-chart {
+    width: 100%;
+    height: 390px;
+    display: block;
+}
+
+.api-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.api-metric {
+    min-width: 110px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(30, 27, 22, 0.05);
+    border: 1px solid rgba(30, 27, 22, 0.08);
+}
+
+.api-metric--up {
+    background: rgba(54, 124, 79, 0.1);
+    border-color: rgba(54, 124, 79, 0.18);
+}
+
+.api-metric--down {
+    background: rgba(201, 90, 59, 0.1);
+    border-color: rgba(201, 90, 59, 0.18);
+}
+
+.api-metric__label {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-bottom: 4px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.api-metric__value {
+    font-size: 1rem;
+}
+
+.api-metric__detail {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.76rem;
+    color: var(--muted);
+}
+
+.api-chart__empty {
+    position: absolute;
+    inset: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-size: 14px;
+    text-align: center;
+    pointer-events: none;
+}
+
+.api-intervals {
+    margin-top: 18px;
+}
+
+.api-intervals__header h3 {
+    margin: 0 0 6px;
+}
+
+.api-intervals__table-wrap {
+    margin-top: 12px;
+    overflow-x: auto;
+}
+
+.api-intervals__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    background: rgba(255, 255, 255, 0.76);
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+.api-intervals__table th,
+.api-intervals__table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(30, 27, 22, 0.08);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.api-intervals__table th {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    background: rgba(30, 27, 22, 0.03);
+}
+
+.api-intervals__value--up {
+    color: #2f7d4d;
+    font-weight: 700;
+}
+
+.api-intervals__value--down {
+    color: var(--accent);
+    font-weight: 700;
+}
+
 @media (max-width: 700px) {
     .hero {
         padding: 28px;
@@ -214,5 +446,24 @@ body {
 
     .section--split {
         grid-template-columns: 1fr;
+    }
+
+    .api-chart-shell {
+        min-height: 340px;
+    }
+
+    .api-chart {
+        height: 310px;
+    }
+
+    .api-bundle__header,
+    .api-ranking-card__header,
+    .api-bundle__item {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .api-bundle__row-actions {
+        justify-content: flex-start;
     }
 }

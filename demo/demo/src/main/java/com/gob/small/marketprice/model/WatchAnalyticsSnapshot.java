@@ -1,23 +1,27 @@
 package com.gob.small.marketprice.model;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 public class WatchAnalyticsSnapshot {
     private String description;
     private String twitterTitle;
     private Details details;
     private Summary summary;
+    private List<PricePoint> priceHistory;
 
     public WatchAnalyticsSnapshot(
             String description,
             String twitterTitle,
             Details details,
-            Summary summary
+            Summary summary,
+            List<PricePoint> priceHistory
     ) {
         this.description = description;
         this.twitterTitle = twitterTitle;
         this.details = details;
         this.summary = summary;
+        this.priceHistory = priceHistory;
     }
 
     public String getDescription() {
@@ -34,6 +38,10 @@ public class WatchAnalyticsSnapshot {
 
     public Summary getSummary() {
         return summary;
+    }
+
+    public List<PricePoint> getPriceHistory() {
+        return priceHistory;
     }
 
     public static class Details {
@@ -180,6 +188,24 @@ public class WatchAnalyticsSnapshot {
 
         public BigDecimal getAbsolutePerformance() {
             return absolutePerformance;
+        }
+    }
+
+    public static class PricePoint {
+        private String time;
+        private BigDecimal value;
+
+        public PricePoint(String time, BigDecimal value) {
+            this.time = time;
+            this.value = value;
+        }
+
+        public String getTime() {
+            return time;
+        }
+
+        public BigDecimal getValue() {
+            return value;
         }
     }
 }
