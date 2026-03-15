@@ -1,10 +1,10 @@
-package com.gob.small.service;
+package com.gob.small.portfolio.service;
 
 import java.util.List;
 
 import org.springframework.stereotype.Service;
 
-import com.gob.small.model.Project;
+import com.gob.small.portfolio.model.Project;
 
 @Service
 public class ProjectService {
