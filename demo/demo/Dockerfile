@@ -1,13 +1,20 @@
 FROM maven:3.9.9-eclipse-temurin-17 AS build
 
 WORKDIR /app
-COPY . .
+COPY pom.xml .
+COPY src ./src
+
 RUN mvn clean package -DskipTests
+
+# Imagen oficial de Playwright con dependencias
 FROM mcr.microsoft.com/playwright/java:v1.41.0-jammy
-FROM eclipse-temurin:17-jdk-alpine
 
 WORKDIR /app
+
 COPY --from=build /app/target/*.jar app.jar
+
+# 👇 CLAVE: instalar navegadores
+RUN playwright install --with-deps
 
 EXPOSE 8080
 
