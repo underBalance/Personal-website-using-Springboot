@@ -134,3 +134,4 @@ Typical commands:
 ```bash
 mvn clean compile
 mvn spring-boot:run
+```
