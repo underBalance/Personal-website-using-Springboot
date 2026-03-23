@@ -218,6 +218,21 @@
                 }
             }
 
+            function resetCurrentWatchSelection() {
+                state.modelSlug = '';
+                state.currentReference = '';
+                state.currentSnapshot = null;
+                addToBundleButton.disabled = true;
+            }
+
+            function setCurrentWatchSelection(brandSlug, modelSlug, ref, snapshot) {
+                state.brandSlug = brandSlug;
+                state.modelSlug = modelSlug;
+                state.currentReference = ref;
+                state.currentSnapshot = snapshot;
+                addToBundleButton.disabled = !snapshot;
+            }
+
             function setResult(status, data) {
                 resultStatus.textContent = status;
                 resultJson.textContent = data ? JSON.stringify(data, null, 2) : '';
@@ -981,7 +996,8 @@
                 clearElement(modelsList);
                 clearElement(refsList);
                 refsHint.textContent = 'Select a model to see the references.';
-                state.modelSlug = '';
+                resetCurrentWatchSelection();
+                state.brandSlug = brandSlug;
 
                 if (!brandSlug) {
                     modelsHint.textContent = 'Select a brand to check the models.';
@@ -1007,8 +1023,7 @@
             }
 
             async function loadReferences(brandSlug, modelSlug) {
-                state.modelSlug = modelSlug;
-                state.currentReference = '';
+                setCurrentWatchSelection(brandSlug, modelSlug, '', null);
                 clearElement(refsList);
                 refsHint.textContent = `Loading references for ${modelSlug}...`;
 
@@ -1031,15 +1046,17 @@
 
             async function loadSnapshot(brandSlug, modelSlug, ref) {
                 setResult(`Checking ${brandSlug}/${modelSlug}/${ref}...`, null);
-                state.currentReference = ref;
+                setCurrentWatchSelection(brandSlug, modelSlug, ref, null);
                 try {
                     const snapshot = await fetchJson(`/api/v1/watch-analytics/${encodeURIComponent(brandSlug)}/${encodeURIComponent(modelSlug)}/${encodeURIComponent(ref)}`);
-                    state.currentSnapshot = snapshot;
-                    addToBundleButton.disabled = false;
+                    setCurrentWatchSelection(brandSlug, modelSlug, ref, snapshot);
                     setResult(`Result for: ${brandSlug}/${modelSlug}/${ref}`, snapshot);
                     bundleHint.textContent = `Current watch ready to add: ${brandSlug}/${modelSlug}/${ref}.`;
                 } catch (error) {
+                    resetCurrentWatchSelection();
+                    state.brandSlug = brandSlug;
                     setResult('Error checking snapshot.', { error: error.message });
+                    bundleHint.textContent = 'The current watch could not be loaded, so it cannot be added to the bundle yet.';
                 }
             }
 
