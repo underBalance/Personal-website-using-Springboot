@@ -314,6 +314,23 @@ body {
     border: 1px solid rgba(30, 27, 22, 0.08);
 }
 
+.api-bundle-metrics {
+    display: grid;
+    gap: 14px;
+    margin-top: 12px;
+}
+
+.api-bundle-metric-card {
+    padding: 14px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.78);
+    border: 1px solid rgba(30, 27, 22, 0.08);
+}
+
+.api-bundle-metric-card__header h4 {
+    margin: 0 0 6px;
+}
+
 .api-chart-card__header h3 {
     margin: 0 0 6px;
 }
