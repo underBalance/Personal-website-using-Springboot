@@ -4,17 +4,14 @@ WORKDIR /app
 COPY pom.xml .
 COPY src ./src
 
-RUN mvn clean package -DskipTests
+RUN mvn -B clean package -DskipTests
 
-# Imagen oficial de Playwright con dependencias
+# Runtime image with Java and Playwright browsers preinstalled
 FROM mcr.microsoft.com/playwright/java:v1.41.0-jammy
 
 WORKDIR /app
 
 COPY --from=build /app/target/*.jar app.jar
-
-# 👇 CLAVE: instalar navegadores
-RUN playwright install --with-deps
 
 EXPOSE 8080
 
