@@ -49,7 +49,7 @@
             </div>
         </section>
 
-        <section class="section section--split">
+        <section class="section">
             <div class="card api-panel">
                 <h2>Watch Analytics API Explorer</h2>
                 <p class="api-panel__subtitle">Select a brand, a model, and then a reference to get a json with the complete information.</p>
@@ -90,7 +90,9 @@
                     <div id="bundleList" class="api-bundle__list"></div>
                 </div>
             </div>
+        </section>
 
+        <section class="section">
             <div class="card api-result">
                 <h2>Resultado</h2>
                 <p id="resultStatus" class="api-hint">Select a reference to execute inside the backend: <code>/api/v1/watch-analytics/{brand}/{model}/{ref}</code></p>
@@ -114,6 +116,15 @@
                         <div id="intervalMetrics" class="api-intervals__table-wrap">
                             <p class="api-hint">Interval metrics will appear here when historical data exists.</p>
                         </div>
+                    </div>
+                </div>
+                <div class="api-ranking-card">
+                    <div class="api-ranking-card__header">
+                        <h3>Bundle watch metrics</h3>
+                        <p id="bundleMetricsStatus" class="api-hint">Detailed historical metrics for each watch in the current bundle.</p>
+                    </div>
+                    <div id="bundleMetricsList" class="api-bundle-metrics">
+                        <p class="api-hint">Bundle metrics will appear here when bundle snapshots are available.</p>
                     </div>
                 </div>
                 <div class="api-ranking-card">
@@ -161,6 +172,8 @@
             const clearBundleButton = document.getElementById('clearBundleButton');
             const rankingStatus = document.getElementById('rankingStatus');
             const rankingTable = document.getElementById('rankingTable');
+            const bundleMetricsStatus = document.getElementById('bundleMetricsStatus');
+            const bundleMetricsList = document.getElementById('bundleMetricsList');
             let historyChart = null;
             const BUNDLE_STORAGE_KEY = 'watch-analytics-bundle-v1';
 
@@ -259,6 +272,33 @@
             function formatPercent(value) {
                 const sign = value > 0 ? '+' : '';
                 return `${sign}${value.toFixed(1)}%`;
+            }
+
+            function chartPalette(index) {
+                const colors = [
+                    { border: '#c95a3b', background: 'rgba(201, 90, 59, 0.14)' },
+                    { border: '#2e6f95', background: 'rgba(46, 111, 149, 0.14)' },
+                    { border: '#6a994e', background: 'rgba(106, 153, 78, 0.14)' },
+                    { border: '#7b2cbf', background: 'rgba(123, 44, 191, 0.14)' },
+                    { border: '#bc4749', background: 'rgba(188, 71, 73, 0.14)' },
+                    { border: '#3a86ff', background: 'rgba(58, 134, 255, 0.14)' }
+                ];
+
+                return colors[index % colors.length];
+            }
+
+            function normalizePriceHistory(points) {
+                if (!Array.isArray(points)) {
+                    return [];
+                }
+
+                return points
+                    .map((point) => ({
+                        time: point.time,
+                        value: Number(point.value)
+                    }))
+                    .sort((a, b) => new Date(`${a.time}T00:00:00Z`) - new Date(`${b.time}T00:00:00Z`))
+                    .filter((point) => Number.isFinite(point.value) && point.time);
             }
 
             function bundleKey(item) {
@@ -366,7 +406,10 @@
                 state.bundleSnapshots = [];
                 state.rankingItems = [];
                 setBundleResponse(null);
+                renderPriceHistory([]);
+                renderBundleMetrics([]);
                 renderRankingTable([]);
+                bundleMetricsStatus.textContent = 'Detailed historical metrics for each watch in the current bundle.';
                 rankingStatus.textContent = 'Run /bundle first, then /bundle/ranking to score the selected watches.';
             }
 
@@ -422,14 +465,27 @@
                     state.bundleSnapshots = Array.isArray(snapshots) ? snapshots : [];
                     state.rankingItems = [];
                     setBundleResponse(state.bundleSnapshots);
+                    renderBundlePriceHistory(state.bundleSnapshots);
+                    renderBundleMetrics(state.bundleSnapshots);
                     renderBundleList();
                     renderRankingTable([]);
-                    rankingStatus.textContent = 'Bundle snapshots saved in the frontend. You can run /bundle/ranking now.';
+                    rankingStatus.textContent = 'Bundle snapshots saved in the frontend. Calculating bundle metrics...';
                     bundleStatus.textContent = `/bundle completed for ${state.bundleSnapshots.length} watches.`;
                     runRankingButton.disabled = state.bundleSnapshots.length === 0;
+
+                    if (state.bundleSnapshots.length > 0) {
+                        const ranking = await postJson('/api/v1/watch-analytics/bundle/ranking', state.bundleSnapshots);
+                        state.rankingItems = Array.isArray(ranking) ? ranking : [];
+                        renderRankingTable(state.rankingItems);
+                        rankingStatus.textContent = `Metrics ready for ${state.rankingItems.length} watches.`;
+                    }
                 } catch (error) {
                     bundleStatus.textContent = 'Error running /bundle.';
                     setBundleResponse({ error: error.message });
+                    renderBundleMetrics([]);
+                    renderRankingTable([]);
+                    bundleMetricsStatus.textContent = 'Bundle watch metrics could not be calculated.';
+                    rankingStatus.textContent = 'Bundle metrics could not be calculated.';
                 }
             }
 
@@ -918,6 +974,298 @@
                 });
             }
 
+            function computeBundleMetrics(points) {
+                if (!Array.isArray(points) || points.length < 2) {
+                    return null;
+                }
+
+                const latest = points[points.length - 1];
+                const periods = [
+                    { label: '1M', unit: 'month', amount: 1 },
+                    { label: '6M', unit: 'month', amount: 6 },
+                    { label: '1Y', unit: 'year', amount: 1 },
+                    { label: '3M', unit: 'month', amount: 3 },
+                    { label: '12M', unit: 'year', amount: 1 }
+                ];
+
+                const metrics = {
+                    roi: [],
+                    momentum: []
+                };
+
+                periods.forEach((period) => {
+                    const startPoint = findPointForPeriod(points, shiftDate(latest.time, period.unit, period.amount));
+                    if (!startPoint || !Number.isFinite(startPoint.value) || startPoint.value === 0) {
+                        return;
+                    }
+
+                    const value = ((latest.value - startPoint.value) / startPoint.value) * 100;
+
+                    if (period.label === '1M' || period.label === '6M' || period.label === '1Y') {
+                        metrics.roi.push({ label: period.label, value });
+                    } else {
+                        metrics.momentum.push({ label: period.label, value });
+                    }
+                });
+
+                const returns = points
+                    .slice(1)
+                    .map((point, index) => {
+                        const previous = points[index];
+                        if (!Number.isFinite(previous.value) || previous.value === 0) {
+                            return null;
+                        }
+
+                        return (point.value - previous.value) / previous.value;
+                    })
+                    .filter((value) => Number.isFinite(value));
+
+                const volatility = standardDeviation(returns);
+                const athPoint = points.reduce((best, point) => (point.value > best.value ? point : best), points[0]);
+                const drawdown = athPoint.value === 0 ? null : ((latest.value - athPoint.value) / athPoint.value) * 100;
+                const riskFreeRate = 0.02;
+                const avgReturn = average(returns);
+                const sharpeRatio =
+                    avgReturn !== null && volatility !== null && volatility !== 0
+                        ? (avgReturn - riskFreeRate) / volatility
+                        : null;
+
+                let runningPeak = points[0].value;
+                let maxDrawdown = 0;
+                points.forEach((point) => {
+                    if (point.value > runningPeak) {
+                        runningPeak = point.value;
+                    }
+
+                    if (runningPeak !== 0) {
+                        const currentDrawdown = ((point.value - runningPeak) / runningPeak) * 100;
+                        maxDrawdown = Math.min(maxDrawdown, currentDrawdown);
+                    }
+                });
+
+                return {
+                    roi: metrics.roi,
+                    momentum: metrics.momentum,
+                    volatility,
+                    athPoint,
+                    drawdown,
+                    sharpeRatio,
+                    maxDrawdown
+                };
+            }
+
+            function renderBundleMetrics(snapshots) {
+                clearElement(bundleMetricsList);
+
+                if (!Array.isArray(snapshots) || snapshots.length === 0) {
+                    bundleMetricsList.innerHTML = '<p class="api-hint">Bundle metrics will appear here when bundle snapshots are available.</p>';
+                    return;
+                }
+
+                const validEntries = snapshots
+                    .map((snapshot, index) => {
+                        const details = snapshot && snapshot.details ? snapshot.details : null;
+                        const points = normalizePriceHistory(snapshot && Array.isArray(snapshot.priceHistory) ? snapshot.priceHistory : []);
+                        return {
+                            index,
+                            details,
+                            points,
+                            metrics: computeBundleMetrics(points)
+                        };
+                    })
+                    .filter((entry) => entry.metrics);
+
+                if (validEntries.length === 0) {
+                    bundleMetricsList.innerHTML = '<p class="api-hint">The bundle has no watches with enough historical data to compute detailed metrics.</p>';
+                    return;
+                }
+
+                bundleMetricsStatus.textContent = `Detailed historical metrics ready for ${validEntries.length} watches.`;
+
+                validEntries.forEach((entry) => {
+                    const card = document.createElement('div');
+                    card.className = 'api-bundle-metric-card';
+
+                    const title = document.createElement('div');
+                    title.className = 'api-bundle-metric-card__header';
+                    title.innerHTML = `
+                        <h4>${entry.details && entry.details.brand ? entry.details.brand : 'Watch'} ${entry.details && entry.details.model ? entry.details.model : entry.index + 1}</h4>
+                        <p class="api-hint">${entry.points[0].time} to ${entry.points[entry.points.length - 1].time} • ${entry.points.length} points</p>
+                    `;
+                    card.appendChild(title);
+
+                    const metricsGrid = document.createElement('div');
+                    metricsGrid.className = 'api-metrics';
+
+                    entry.metrics.roi.forEach((metric) => {
+                        const item = document.createElement('div');
+                        item.className = `api-metric ${metric.value >= 0 ? 'api-metric--up' : 'api-metric--down'}`;
+                        item.innerHTML = `<span class="api-metric__label">ROI ${metric.label}</span><strong class="api-metric__value">${formatPercent(metric.value)}</strong>`;
+                        metricsGrid.appendChild(item);
+                    });
+
+                    if (entry.metrics.volatility !== null) {
+                        const item = document.createElement('div');
+                        item.className = 'api-metric';
+                        item.innerHTML = `<span class="api-metric__label">Volatility</span><strong class="api-metric__value">${formatPercent(entry.metrics.volatility * 100)}</strong><span class="api-metric__detail">Std. dev. of returns</span>`;
+                        metricsGrid.appendChild(item);
+                    }
+
+                    if (entry.metrics.athPoint) {
+                        const item = document.createElement('div');
+                        item.className = 'api-metric';
+                        item.innerHTML = `<span class="api-metric__label">ATH</span><strong class="api-metric__value">${formatPrice(entry.metrics.athPoint.value)}</strong><span class="api-metric__detail">${entry.metrics.athPoint.time}</span>`;
+                        metricsGrid.appendChild(item);
+                    }
+
+                    if (entry.metrics.drawdown !== null) {
+                        const item = document.createElement('div');
+                        item.className = `api-metric ${entry.metrics.drawdown >= 0 ? 'api-metric--up' : 'api-metric--down'}`;
+                        item.innerHTML = `<span class="api-metric__label">Drawdown</span><strong class="api-metric__value">${formatPercent(entry.metrics.drawdown)}</strong><span class="api-metric__detail">vs ATH</span>`;
+                        metricsGrid.appendChild(item);
+                    }
+
+                    if (entry.metrics.sharpeRatio !== null) {
+                        const item = document.createElement('div');
+                        item.className = `api-metric ${entry.metrics.sharpeRatio >= 0 ? 'api-metric--up' : 'api-metric--down'}`;
+                        item.innerHTML = `<span class="api-metric__label">Sharpe</span><strong class="api-metric__value">${entry.metrics.sharpeRatio.toFixed(2)}</strong><span class="api-metric__detail">Rf 2%</span>`;
+                        metricsGrid.appendChild(item);
+                    }
+
+                    const maxDdItem = document.createElement('div');
+                    maxDdItem.className = `api-metric ${entry.metrics.maxDrawdown >= 0 ? 'api-metric--up' : 'api-metric--down'}`;
+                    maxDdItem.innerHTML = `<span class="api-metric__label">Max drawdown</span><strong class="api-metric__value">${formatPercent(entry.metrics.maxDrawdown)}</strong><span class="api-metric__detail">Worst historical fall</span>`;
+                    metricsGrid.appendChild(maxDdItem);
+
+                    entry.metrics.momentum.forEach((metric) => {
+                        const item = document.createElement('div');
+                        item.className = `api-metric ${metric.value >= 0 ? 'api-metric--up' : 'api-metric--down'}`;
+                        item.innerHTML = `<span class="api-metric__label">Momentum ${metric.label}</span><strong class="api-metric__value">${formatPercent(metric.value)}</strong>`;
+                        metricsGrid.appendChild(item);
+                    });
+
+                    card.appendChild(metricsGrid);
+                    bundleMetricsList.appendChild(card);
+                });
+            }
+
+            function renderBundlePriceHistory(snapshots) {
+                destroyChart();
+
+                const series = (Array.isArray(snapshots) ? snapshots : [])
+                    .map((snapshot, index) => {
+                        const points = normalizePriceHistory(snapshot && Array.isArray(snapshot.priceHistory) ? snapshot.priceHistory : []);
+                        const details = snapshot && snapshot.details ? snapshot.details : null;
+                        const labelParts = [];
+
+                        if (details && details.brand) {
+                            labelParts.push(details.brand);
+                        }
+
+                        if (details && details.model) {
+                            labelParts.push(details.model);
+                        }
+
+                        return {
+                            label: labelParts.length > 0 ? labelParts.join(' ') : `Watch ${index + 1}`,
+                            points,
+                            color: chartPalette(index)
+                        };
+                    })
+                    .filter((entry) => entry.points.length >= 2);
+
+                if (series.length === 0) {
+                    historyChartEmpty.style.display = 'flex';
+                    chartSummary.textContent = 'The bundle chart will appear when the backend returns historical data for at least one watch.';
+                    renderMetrics([]);
+                    renderIntervalMetrics([], []);
+                    return;
+                }
+
+                const labels = Array.from(new Set(series.flatMap((entry) => entry.points.map((point) => point.time))))
+                    .sort((a, b) => new Date(`${a}T00:00:00Z`) - new Date(`${b}T00:00:00Z`));
+
+                const datasets = series.map((entry) => {
+                    const valueMap = new Map(entry.points.map((point) => [point.time, point.value]));
+
+                    return {
+                        label: entry.label,
+                        data: labels.map((label) => {
+                            const value = valueMap.get(label);
+                            return Number.isFinite(value) ? value : null;
+                        }),
+                        yAxisID: 'y',
+                        borderColor: entry.color.border,
+                        backgroundColor: entry.color.background,
+                        fill: false,
+                        tension: 0.25,
+                        pointRadius: 2,
+                        pointHoverRadius: 4,
+                        spanGaps: true
+                    };
+                });
+
+                historyChartEmpty.style.display = 'none';
+                renderMetrics([]);
+                renderIntervalMetrics([], []);
+
+                historyChart = new Chart(historyChartCanvas, {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            mode: 'index',
+                            intersect: false
+                        },
+                        plugins: {
+                            legend: {
+                                labels: {
+                                    boxWidth: 12
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label(context) {
+                                        return `${context.dataset.label}: ${formatPrice(context.raw)}`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                ticks: {
+                                    maxTicksLimit: 8
+                                },
+                                grid: {
+                                    color: 'rgba(30, 27, 22, 0.08)'
+                                }
+                            },
+                            y: {
+                                position: 'left',
+                                ticks: {
+                                    callback(value) {
+                                        return formatPrice(value);
+                                    }
+                                },
+                                grid: {
+                                    color: 'rgba(30, 27, 22, 0.08)'
+                                }
+                            }
+                        }
+                    }
+                });
+
+                const firstLabel = labels[0];
+                const lastLabel = labels[labels.length - 1];
+                chartSummary.textContent =
+                    `${series.length} watches • ${labels.length} dates • ${firstLabel} to ${lastLabel} • comparative bundle view`;
+            }
+
             function renderPriceHistory(points) {
                 destroyChart();
 
@@ -928,13 +1276,7 @@
                     return;
                 }
 
-                const parsed = points
-                    .map((point) => ({
-                        time: point.time,
-                        value: Number(point.value)
-                    }))
-                    .sort((a, b) => new Date(`${a.time}T00:00:00Z`) - new Date(`${b.time}T00:00:00Z`))
-                    .filter((point) => Number.isFinite(point.value) && point.time);
+                const parsed = normalizePriceHistory(points);
 
                 if (parsed.length < 2) {
                     historyChartEmpty.style.display = 'flex';
